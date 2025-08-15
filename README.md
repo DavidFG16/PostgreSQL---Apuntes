@@ -62,7 +62,7 @@ CREATE TYPE sexo AS ENUM('Masculino', 'Femenino', 'Otro');
 
 CREATE TABLE camper(
     name varchar(100) NOT NULL,
-    sexo_camper sexo NOT NULL
+    sexo_camper sexo NOT NULLV
 );
 ```
 
