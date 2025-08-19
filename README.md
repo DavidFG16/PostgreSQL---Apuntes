@@ -157,54 +157,115 @@ ALTER TABLE empleados ADD CONSTRAINT check_edad CHECK(edad>=18);
 ALTER TABLE empleados ALTER COLUMN salario SET DEFAULT 400.0;
 ``` 
 
+## ESQUEMAS (ESCHEMAS)
 
-
-### Taller de Constraints
-> Definir los Constraints 
-- Primary Key
-- Foreign Key
-- NOT NULL
-- DEFAULT() 
-> Mediante ALTER TABLE 
+Es como tener varias bases de datos dentro de 1 sola, para verlp de un modo más sencillo, es como tener carpetas dentro de una base de datos.
+Normalmente se usan los esquemas para proyectos robustos
 
 ```sql
-CREATE TABLE country (
-    id serial,
-    name varchar(50)
-);
+CREATE SCHEMA IF NOT EXISTS miscompras;
+SET search_path TO miscompras; -- Establece la ruta al esquema creado
+```
 
-CREATE TABLE region (
-    id serial,
-    name varchar(50),
-    idcountry integer
-);
+## Funciones y operadores
 
-CREATE TABLE city (
-    id serial,
-    name varchar(50),
-    idregion integer
-);
+1. Top 10 productos más vendidos y su ingreso total 
+- `SUM()`
+- `USING()`
+```sql
+SELECT p.id_producto, p.nombre,
+SUM(cp.cantidad) AS unidades,
+SUM(cp.total) AS ingreso_total
+FROM miscompras.compras_productos cp
+JOIN miscompras.productos p USING(id_producto)
+GROUP BY p.id_producto, p.nombre
+ORDER BY unidades DESC
+LIMIT 10;
+```
 
-ALTER TABLE country ADD CONSTRAINT pk_country PRIMARY KEY(id);
-ALTER TABLE city ALTER COLUMN idregion SET NOT NULL;
+2. Venta promedio por compra y mediana aproximada
+- `PERCENTILE_CONT(..) WITHIN GROUP (ORDER BY)`
+- `ROUND`
+- `USING()`
 
+```sql
+SELECT AVG(t.total_compra) AS promedio_compra,
+PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.total_compra) AS mediana
+FROM(
+SELECT c.id_compra, SUM(cp.total) as total_compra
+FROM miscompras.compras c
+JOIN miscompras.compras_productos cp USING (id_compra)
+GROUP BY c.id_compra
+) t;
+```
+3. Compras por cliente y ranking
+-  `COUNT`
+-  `SUM`
+-  `RANK() OVER(ORDER BY... ASC/DESC) ASC/DESC`
 
-ALTER TABLE region ADD CONSTRAINT pk_region PRIMARY KEY(id);
-ALTER TABLE region ADD CONSTRAINT fk_country FOREIGN KEY(idcountry) REFERENCES country(id);
-ALTER TABLE region ALTER COLUMN idcountry SET NOT NULL;
+```sql
+SELECT cl.id, cl.nombre || ' ' || cl.apellidos as cliente,
+    COUNT(DISTINCT c.id_compra) AS compras,
+    SUM(cp.total) AS gasto_total,
+    RANK() OVER(ORDER BY SUM(cp.total)DESC) AS ranking_gasto
+FROM miscompras.clientes cl
+JOIN miscompras.compras c ON cl.id = c.id_cliente
+JOIN miscompras.compras_productos cp USING(id_compra)
+GROUP BY cl.id, cliente
+ORDER BY ranking_gasto
+```
 
+4. Ticket por compra 
+- `COUNT`
+- `ROUND`
+- `SUM`
+- `WITH args AS`
 
+```sql
+-- CURRENT_DATE, CURRENT_TIME, CURRENT_TIMESTAMP ~ NOW, AGE, EXTRACT
+-- COLUMN_NAME::day, COLUMN_NAME::date, COLUMN_NAME::month
+WITH t AS(
+SELECT c.id_compra, c.fecha::date as dia, SUM(cp.total) as total_compra
+FROM miscompras.compras c
+JOIN miscompras.compras_productos cp USING(id_compra)
+GROUP BY c.id_compra, c.fecha::date
+)
 
-ALTER TABLE city ADD CONSTRAINT pk_city PRIMARY KEY(id);
-ALTER TABLE city ADD CONSTRAINT fk_region FOREIGN KEY(idregion) REFERENCES region(id);
-ALTER TABLE city ALTER COLUMN idregion SET NOT NULL;
+SELECT dia,
+    COUNT(*) as numero_compra,
+    ROUND(AVG(total_compra), 2) as promedio,
+    SUM(total_compra) as total_dia
+FROM t
+GROUP BY dia
+ORDER BY dia
+```
+5. Búsqueda "tipo-ecommerce": productos activos, disponibles y que empiezan por 'Caf'V
+- `ILIKE`
+```sql
+SELECT  p.id_producto, p.nombre, p.precio_venta, p.cantidad_stock
+FROM miscompras.productos p
+WHERE p.estado = 1
+AND p.cantidad_stock > 0
+AND p.nombre ILIKE 'caf%';
+```
 
+23. Función. total de una compra (retorna NUMERIC)
+-`COALLESCE`
+-`SUM`
 
+```sql
+CREATE OR REPLACE FUNCTION miscompras.fn_total_compra(p_id_compra INT)
+RETURNS NUMERIC LANGUAGE plpgsql AS $$
+DECLARE v_total NUMERIC(16,2);
+BEGIN
+    SELECT COALESCE(SUM(total), 0)
+    INTO v_total
+    FROM miscompras.compras_productos
+    WHERE id_compra = p_id_compra
+    
+    RETURN v_total;
+END;
+$$;
 
-
-
-
-
-
-
+SELECT miscompras.fn_total_compra(1) AS total_compra_1 -- llama a la función
 ```

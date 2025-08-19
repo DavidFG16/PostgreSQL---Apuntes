@@ -56,7 +56,7 @@ CREATE TABLE clientes(
 );
 
 CREATE TABLE categorias(
-    id_categoria integer PRIMARY KEY,
+    id_categoria serial PRIMARY KEY,
     descripcion varchar(45),
     estado smallint
 );
