@@ -269,3 +269,81 @@ $$;
 
 SELECT miscompras.fn_total_compra(1) AS total_compra_1 -- llama a la función
 ```
+
+20. Materialized view mensual
+    ```SQL
+    DROP VIEW IF EXISTS miscompras.reporte_mes;
+    CREATE MATERIALIZED VIEW IF NOT EXISTS miscompras.reporte_mes AS
+    SELECT DATE_TRUNC('month', c.fecha) as mes,
+        SUM(cp.total) AS total_ventas
+    FROM miscompras.compras c
+    JOIN miscompras.compras_productos cp USING(id_compra)
+    GROUP BY mes;
+
+    REFRESH MATERIALIZED VIEW miscompras.reporte_mes; -- Refrescar vista materializada
+
+
+    SELECT * FROM miscompras.reporte_mes WHERE total_ventas > 70000;
+    ```
+
+24. Trigger: al insertar detalle de compra descuenta stock
+    - `GREATEST`
+    ```SQL
+        CREATE OR REPLACE FUNCTION miscompras.tgr_descuenta_stock()
+        RETURNS TRIGGER LANGUAGE plppgsql AS 
+        $$
+        BEGIN
+            UPDATE miscompras.productos
+            SET cantidad_stock = GREATEST(0, cantidad_stock - NEW.cantidad)
+            WHERE id_producto = NEW.id_producto;
+            RETURN NEW;
+        END;
+        $$;
+
+
+        DROP TRIGGER IF EXISTS compras_productos_descuento_stock ON miscompras.compras_productos;
+
+        CREATE TRIGGER compras_productos_descuento_stock
+        AFTER INSERT ON miscompras.compras_productos;
+        FOR EACH ROW EXECUTE FUNCTION miscompras.tgr_descuenta_stock();
+    ```
+
+27. Funcion: Mostrar el valor total en formato moneda
+- `TO_CHAR`
+```sql
+SELECT nombre, toMoney(precio_venta)
+FROM miscompras.productos;
+
+CREATE OR REPLACE FUNCTION miscompras.toMoney(p_numeric NUMERIC)
+RETURNS VARCHAR LANGUAGE plpgsql AS
+$$
+DECLARE valor VARCHAR(255);
+BEGIN
+    SELECT CONCAT('$ ', TO_CHAR(p_numeric, 'FM999G999G999D00'))
+    INTO valor;
+    RETURN valor;
+END;
+$$
+```
+
+## Procedimientos Almacenados 
+
+```SQL
+CREATE OR REPLACE PROCEDURE miscompras.pc_registrar_nuevo_cliente(p_nombre
+VARCHAR(100), p_apellido VARCHAR(100), p_celular NUMERIC(10, 0), p_direccion
+VARCHAR(80), p_email VARCHAR(70))
+LANGUAGE plpgsql AS
+$$
+BEGIN
+INSERT INTO miscompras.clientes (nombre, apellidos, celular, direccion,
+correo_electronico)
+VALUES (INITCAP(TRIM(p_nombre)), INITCAP(TRIM(p_apellido), p_celular, TRIM
+(p_direccion), TRIM(p_email)));
+RAISE NOTICE 'Se registro el usuario % exitosamente.',p_email;
+EXCEPTION
+WHEN OTHERS THEN
+RAISE EXCEPTION 'Error al registrar el nuevo usuario, el usaurio ya se
+encuentra registrado';
+END;
+$$
+```     
