@@ -274,32 +274,3 @@ INSERT INTO miscompras.compras_productos (id_compra, id_producto, cantidad, tota
 ((SELECT id_compra FROM miscompras.compras WHERE id_cliente='CC1004' AND fecha='2025-08-05 13:50:00'),
  (SELECT id_producto FROM miscompras.productos WHERE nombre='Café de Colombia 500g'), 1, 28000.00, 1);
 
-SELECT * FROM miscompras.productos
-
-SELECT id_compra as id_compra, ROUND(SUM(total)) as subtotal, ROUND(SUM(total)) * 0.19 as iva_producto, ROUND(SUM(total) + SUM(total) * 0.19) as total
-    FROM miscompras.compras_productos
-    GROUP BY id_compra;
-
-CREATE OR REPLACE PROCEDURE miscompras.pc_registrar_nuevo_cliente(p_nombre
-VARCHAR(100), p_apellido VARCHAR(100), p_celular NUMERIC(10, 0), p_direccion
-VARCHAR(80), p_email VARCHAR(70))
-LANGUAGE plpgsql AS
-$$
-BEGIN
-INSERT INTO miscompras.clientes (nombre, apellidos, celular, direccion,
-correo_electronico)
-VALUES (INITCAP(TRIM(p_nombre)), INITCAP(TRIM(p_apellido), p_celular, TRIM
-(p_direccion), TRIM(p_email)));
-RAISE NOTICE 'Se registro el usuario % exitosamente.',p_email;
-EXCEPTION
-WHEN OTHERS THEN
-RAISE EXCEPTION 'Error al registrar el nuevo usuario, el usaurio ya se
-encuentra registrado';
-END;
-$$
-
-
-SELECT 
-    p.nombre,
-    ROUND(((p.precio_venta - p.precio_costo) / p.precio_venta) * 100, 1) AS margen_porcentual
-FROM miscompras.productos p;
